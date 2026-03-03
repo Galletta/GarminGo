@@ -19,7 +19,10 @@ from src.config import HEADERS, HEADER_TO_ATTRIBUTE_MAP, GarminMetrics
 logging.getLogger('google_auth_oauthlib.flow').setLevel(logging.WARNING)
 logging.getLogger("hpack").setLevel(logging.WARNING)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+ )
 logger = logging.getLogger(__name__)
 
 app = typer.Typer()
