@@ -4,5 +4,5 @@ PYTHONPATH=/app
 # 1. Sync Omramin (8:10 AM)
 10 8 * * * omramin sync > /proc/1/fd/1 2>&1
 
-# Every day at 08:15 AM, sync yesterday's data for USER1 to Google Sheets
-15 8 * * * cd /app && python3 src/main.py cli-sync --profile USER1 --output-type sheets > /proc/1/fd/1 2>&1
+# Every day at 08:15 AM
+15 8 * * * cd /app && python3 src/main.py cli-sync --start-date $(date -d 'yesterday' +\%Y-\%m-\%d) --end-date $(date -d 'yesterday' +\%Y-\%m-\%d) --profile USER1 --output-type sheets > /proc/1/fd/1 2>&1

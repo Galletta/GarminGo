@@ -157,20 +157,18 @@ def load_user_profiles():
             profiles[profile_name][key_map[var_type]] = value
     return profiles
 
-@app.command()
+@app.command(name="cli-sync")
 def cli_sync(
-    start_date: Optional[str] = typer.Option(None, help="Start date (YYYY-MM-DD). Defaults to yesterday."),
-    end_date: Optional[str] = typer.Option(None, help="End date (YYYY-MM-DD). Defaults to yesterday."),
+    start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format."),
+    end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format."),
     profile: str = typer.Option("USER1", help="The user profile from .env to use."),
     output_type: str = typer.Option("sheets", help="Output type: 'sheets' or 'csv'.")
 ):
     """Run the Garmin sync from the command line."""
     date_format = "%Y-%m-%d"
-    yesterday = (datetime.now() - timedelta(days=1)).date()
-
-    # Parse dates if provided, otherwise use yesterday
-    s_date = datetime.strptime(start_date, date_format).date() if start_date else yesterday
-    e_date = datetime.strptime(end_date, date_format).date() if end_date else yesterday
+    # Convert strings back to dates for the sync function
+    s_date = datetime.strptime(start_date, date_format).date()
+    e_date = datetime.strptime(end_date, date_format).date()
 
     user_profiles = load_user_profiles()
     selected_profile_data = user_profiles.get(profile)
