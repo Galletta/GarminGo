@@ -20,7 +20,8 @@ logging.getLogger('google_auth_oauthlib.flow').setLevel(logging.WARNING)
 logging.getLogger("hpack").setLevel(logging.WARNING)
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
+    #level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
  )
 logger = logging.getLogger(__name__)
@@ -156,33 +157,29 @@ def load_user_profiles():
             profiles[profile_name][key_map[var_type]] = value
     return profiles
 
-@app.command()
+app.command()
 def cli_sync(
-    start_date: datetime = typer.Option(..., help="Start date in YYYY-MM-DD format."),
-    end_date: datetime = typer.Option(..., help="End date in YYYY-MM-DD format."),
-    profile: str = typer.Option("USER1", help="The user profile from .env to use (e.g., USER1)."),
+    start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format."),
+    end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format."),
+    profile: str = typer.Option("USER1", help="The user profile from .env to use."),
     output_type: str = typer.Option("sheets", help="Output type: 'sheets' or 'csv'.")
 ):
     """Run the Garmin sync from the command line."""
+    # Convert string inputs to date objects
+    date_format = "%Y-%m-%d"
+    s_date = datetime.strptime(start_date, date_format).date()
+    e_date = datetime.strptime(end_date, date_format).date()
+
     user_profiles = load_user_profiles()
     selected_profile_data = user_profiles.get(profile)
 
-    if not selected_profile_data:
-        logger.error(f"Profile '{profile}' not found in .env file.")
-        sys.exit(1)
-
-    email = selected_profile_data.get('email')
-    password = selected_profile_data.get('password')
-
-    if not email or not password:
-        logger.error(f"Email or password not configured for profile '{profile}'.")
-        sys.exit(1)
-
+    # ... (rest of your existing cli_sync code) ...
+    
     asyncio.run(sync(
         email=email,
         password=password,
-        start_date=start_date.date(),
-        end_date=end_date.date(),
+        start_date=s_date, # Use the parsed date
+        end_date=e_date,   # Use the parsed date
         output_type=output_type,
         profile_data=selected_profile_data,
         profile_name=profile

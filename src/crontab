@@ -1,0 +1,9 @@
+PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+PYTHONPATH=/app
+
+# 1. Sync Omramin (8:10 AM)
+10 8 * * * omramin sync > /proc/1/fd/1 2>&1
+
+# 2. Run GarminGo at 08:20 AM
+# $(date -d 'yesterday' +\%Y-\%m-\%d) automatically calculates yesterday's date
+20 8 * * * cd /app && python3 src/main.py cli-sync --start-date $(date -d 'yesterday' +\%Y-\%m-\%d) --end-date $(date -d 'yesterday' +\%Y-\%m-\%d) --profile USER1 --output-type sheets > /proc/1/fd/1 2>&1
