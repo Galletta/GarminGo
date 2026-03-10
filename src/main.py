@@ -157,29 +157,36 @@ def load_user_profiles():
             profiles[profile_name][key_map[var_type]] = value
     return profiles
 
-app.command()
+@app.command()
 def cli_sync(
-    start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format."),
-    end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format."),
+    start_date: Optional[str] = typer.Option(None, help="Start date (YYYY-MM-DD). Defaults to yesterday."),
+    end_date: Optional[str] = typer.Option(None, help="End date (YYYY-MM-DD). Defaults to yesterday."),
     profile: str = typer.Option("USER1", help="The user profile from .env to use."),
     output_type: str = typer.Option("sheets", help="Output type: 'sheets' or 'csv'.")
 ):
     """Run the Garmin sync from the command line."""
-    # Convert string inputs to date objects
     date_format = "%Y-%m-%d"
-    s_date = datetime.strptime(start_date, date_format).date()
-    e_date = datetime.strptime(end_date, date_format).date()
+    yesterday = (datetime.now() - timedelta(days=1)).date()
+
+    # Parse dates if provided, otherwise use yesterday
+    s_date = datetime.strptime(start_date, date_format).date() if start_date else yesterday
+    e_date = datetime.strptime(end_date, date_format).date() if end_date else yesterday
 
     user_profiles = load_user_profiles()
     selected_profile_data = user_profiles.get(profile)
 
-    # ... (rest of your existing cli_sync code) ...
-    
+    if not selected_profile_data:
+        logger.error(f"Profile '{profile}' not found in .env file.")
+        sys.exit(1)
+
+    email = selected_profile_data.get('email')
+    password = selected_profile_data.get('password')
+
     asyncio.run(sync(
         email=email,
         password=password,
-        start_date=s_date, # Use the parsed date
-        end_date=e_date,   # Use the parsed date
+        start_date=s_date,
+        end_date=e_date,
         output_type=output_type,
         profile_data=selected_profile_data,
         profile_name=profile
@@ -277,22 +284,19 @@ def main():
     env_file_path = find_dotenv(usecwd=True)
     if env_file_path:
         load_dotenv(dotenv_path=env_file_path)
-    else:
-        logger.warning(".env file not found. Please ensure it's in the root directory.")
     
-    try:
-        # Check if any CLI arguments were provided
-        if len(sys.argv) > 1:
-            # CLI mode: use typer to parse arguments
-            app()
-        else:
-            # Interactive mode: run the interactive session
-            print("\nWelcome to GarminGo!")
-            print("Let's help you make data-driven health and longevity decisions by grabbing your Garmin data.")
-            asyncio.run(run_interactive_sync())
-    except KeyboardInterrupt:
-        print("\nOperation cancelled by user.")
-        sys.exit(0)
+    # If arguments are passed (like 'cli-sync'), let Typer handle it
+    if len(sys.argv) > 1:
+        app()
+    else:
+        # If no arguments and NO terminal (like inside Cron), fail gracefully or default
+        if not sys.stdin.isatty():
+            logger.error("Non-interactive mode requires CLI arguments (e.g., cli-sync).")
+            sys.exit(1)
+        
+        # Manual run: show the welcome screen
+        print("\nWelcome to GarminGo!")
+        asyncio.run(run_interactive_sync())
 
 if __name__ == "__main__":
     main()
