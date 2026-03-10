@@ -44,7 +44,8 @@ class GoogleSheetsClient:
                     raise GoogleAuthTokenRefreshError(f"Google token refresh failed: {e}")
             else:
                 flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, SCOPES)
-                creds = flow.run_local_server(port=0)
+                # This tells Google not to look for a browser and prints the URL to the console instead
+                creds = flow.run_local_server(port=0, open_browser=False)
             
             with open(token_path, 'wb') as token:
                 pickle.dump(creds, token)
