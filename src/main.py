@@ -20,8 +20,7 @@ logging.getLogger('google_auth_oauthlib.flow').setLevel(logging.WARNING)
 logging.getLogger("hpack").setLevel(logging.WARNING)
 
 logging.basicConfig(
-    level=logging.DEBUG,
-    #level=logging.INFO,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
  )
 logger = logging.getLogger(__name__)
@@ -157,18 +156,23 @@ def load_user_profiles():
             profiles[profile_name][key_map[var_type]] = value
     return profiles
 
-@app.command(name="cli-sync")
+@app.command("cli-sync")
 def cli_sync(
     start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format."),
     end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format."),
-    profile: str = typer.Option("USER1", help="The user profile from .env to use."),
+    profile: str = typer.Option("USER1", help="The user profile from .env to use (e.g., USER1)."),
     output_type: str = typer.Option("sheets", help="Output type: 'sheets' or 'csv'.")
 ):
     """Run the Garmin sync from the command line."""
+    
+    # Safely convert strings to date objects for the sync function
     date_format = "%Y-%m-%d"
-    # Convert strings back to dates for the sync function
-    s_date = datetime.strptime(start_date, date_format).date()
-    e_date = datetime.strptime(end_date, date_format).date()
+    try:
+        s_date = datetime.strptime(start_date, date_format).date()
+        e_date = datetime.strptime(end_date, date_format).date()
+    except ValueError:
+        logger.error(f"Invalid date format. Please use {date_format}.")
+        sys.exit(1)
 
     user_profiles = load_user_profiles()
     selected_profile_data = user_profiles.get(profile)
@@ -180,6 +184,10 @@ def cli_sync(
     email = selected_profile_data.get('email')
     password = selected_profile_data.get('password')
 
+    if not email or not password:
+        logger.error(f"Email or password not configured for profile '{profile}'.")
+        sys.exit(1)
+
     asyncio.run(sync(
         email=email,
         password=password,
@@ -189,6 +197,11 @@ def cli_sync(
         profile_data=selected_profile_data,
         profile_name=profile
     ))
+
+@app.command("interactive")
+def interactive_command():
+    """Dummy command to ensure Typer activates multi-command mode."""
+    asyncio.run(run_interactive_sync())
 
 async def run_interactive_sync():
     """Handles the interactive session to gather parameters and run the sync."""
@@ -282,19 +295,27 @@ def main():
     env_file_path = find_dotenv(usecwd=True)
     if env_file_path:
         load_dotenv(dotenv_path=env_file_path)
-    
-    # If arguments are passed (like 'cli-sync'), let Typer handle it
-    if len(sys.argv) > 1:
-        app()
     else:
-        # If no arguments and NO terminal (like inside Cron), fail gracefully or default
-        if not sys.stdin.isatty():
-            logger.error("Non-interactive mode requires CLI arguments (e.g., cli-sync).")
-            sys.exit(1)
-        
-        # Manual run: show the welcome screen
-        print("\nWelcome to GarminGo!")
-        asyncio.run(run_interactive_sync())
+        logger.warning(".env file not found. Please ensure it's in the root directory.")
+    
+    try:
+        # Check if any CLI arguments were provided
+        if len(sys.argv) > 1:
+            # CLI mode: use typer to parse arguments (Cron uses this route)
+            app()
+        else:
+            # Cron Protection: Prevent background hanging if no arguments are passed
+            if not sys.stdin.isatty():
+                logger.error("Headless environment (Cron) detected, but no arguments were provided. Exiting.")
+                sys.exit(1)
+
+            # Interactive mode: run the interactive session
+            print("\nWelcome to GarminGo!")
+            print("Let's help you make data-driven health and longevity decisions by grabbing your Garmin data.")
+            asyncio.run(run_interactive_sync())
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
