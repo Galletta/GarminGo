@@ -226,23 +226,30 @@ class GarminClient:
                 logger.warning(f"Stats data for {target_date} is None. Weight and body fat metrics will be blank.")
 
             # Get blood pressure (if available)
+            # NEW: Process Dedicated Blood Pressure Data
             if bp_payload and isinstance(bp_payload, dict):
-                bp_list = bp_payload.get('bloodPressureData', [])
-                if bp_list:
+                # Garmin nests the actual readings inside measurementSummaries
+                summaries = bp_payload.get('measurementSummaries', [])
+                all_measurements = []
+                
+                for summary in summaries:
+                    all_measurements.extend(summary.get('measurements', []))
+
+                if all_measurements:
                     sys_total, dia_total, bp_count = 0, 0, 0
                     log_entries = []
 
-                    for reading in bp_list:
+                    for reading in all_measurements:
                         sys = reading.get('systolic')
                         dia = reading.get('diastolic')
-                        timestamp_raw = reading.get('measurementTimestampLocal') or reading.get('measurementTimestamp') or ""
+                        timestamp_raw = reading.get('measurementTimestampLocal') or reading.get('measurementTimestampGMT') or ""
 
                         if sys and dia:
                             sys_total += sys
                             dia_total += dia
                             bp_count += 1
                             
-                            # Extract HH:MM from timestamp (e.g., "2026-03-10T08:10:00.0")
+                            # Extract HH:MM from timestamp (e.g., "2026-03-10T18:30:44.0")
                             time_str = "Unknown"
                             if "T" in timestamp_raw:
                                 try:
