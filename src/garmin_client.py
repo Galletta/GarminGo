@@ -106,11 +106,15 @@ class GarminClient:
             async def get_hrv():
                 return await self._fetch_hrv_data(target_date.isoformat())
 
+            # Explicitly fetch Blood Pressure data
             async def get_bp():
                 try:
-                    return await asyncio.get_event_loop().run_in_executor(
+                    data = await asyncio.get_event_loop().run_in_executor(
                         None, self.client.get_blood_pressure, target_date.isoformat()
                     )
+                    # ADD THIS LOG LINE BELOW:
+                    logger.info(f"DEBUG BP for {target_date.isoformat()}: {data}")
+                    return data
                 except Exception as e:
                     logger.debug(f"No BP data found or error fetching BP: {e}")
                     return None
