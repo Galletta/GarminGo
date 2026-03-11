@@ -90,9 +90,11 @@ class GoogleSheetsClient:
         self._setup_sheet(all_sheets_properties)
         
         try:
+            # 1. This part reads the current dates in your sheet
             date_column_range = f"'{self.sheet_name}'!A:A"
             result = self.service.spreadsheets().values().get(spreadsheetId=self.spreadsheet_id, range=date_column_range).execute()
             existing_dates_list = result.get('values', [])
+            # 2. This part creates a "map" of which date is on which row
             date_to_row_map = {row[0]: i + 1 for i, row in enumerate(existing_dates_list) if row}
         except HttpError as e:
             logger.error(f"Could not read existing dates from sheet: {e}")
@@ -121,6 +123,7 @@ class GoogleSheetsClient:
                 
                 row_data.append(value)
 
+            # 3. This part decides whether to update or append
             if metric_date_str in date_to_row_map:
                 row_number = date_to_row_map[metric_date_str]
                 updates.append({

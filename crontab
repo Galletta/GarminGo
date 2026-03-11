@@ -1,0 +1,4 @@
+PATH=/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin
+
+# Daily Sync: Fetch Yesterday (final data) + Today (sleep data)
+15 8 * * * cd /app && python3 src/main.py cli-sync --profile USER1 --start-date $(date -d "yesterday" +\%Y-\%m-\%d) --end-date $(date +\%Y-\%m-\%d) > /proc/1/fd/1 2>&1
