@@ -106,9 +106,18 @@ class GarminClient:
             async def get_hrv():
                 return await self._fetch_hrv_data(target_date.isoformat())
 
+            async def get_bp():
+                try:
+                    return await asyncio.get_event_loop().run_in_executor(
+                        None, self.client.get_blood_pressure, target_date.isoformat()
+                    )
+                except Exception as e:
+                    logger.debug(f"No BP data found or error fetching BP: {e}")
+                    return None
+
             # Fetch data concurrently
-            stats, sleep_data, activities, summary, training_status, hrv_payload = await asyncio.gather(
-                get_stats(), get_sleep(), get_activities(), get_user_summary(), get_training_status(), get_hrv()
+            stats, sleep_data, activities, summary, training_status, hrv_payload, bp_payload = await asyncio.gather(
+                get_stats(), get_sleep(), get_activities(), get_user_summary(), get_training_status(), get_hrv(), get_bp()
             )
 
             # Debug logging
@@ -181,6 +190,7 @@ class GarminClient:
             body_fat: Optional[float] = None
             blood_pressure_systolic: Optional[int] = None
             blood_pressure_diastolic: Optional[int] = None
+            bp_log_raw: Optional[str] = None
             active_calories: Optional[int] = None
             resting_calories: Optional[int] = None
             intensity_minutes: Optional[int] = None
@@ -212,9 +222,43 @@ class GarminClient:
                 logger.warning(f"Stats data for {target_date} is None. Weight and body fat metrics will be blank.")
 
             # Get blood pressure (if available)
-            if stats: # Already checked above, but for clarity
-                blood_pressure_systolic = stats.get('systolic')
-                blood_pressure_diastolic = stats.get('diastolic')
+            if bp_payload and isinstance(bp_payload, dict):
+                bp_list = bp_payload.get('bloodPressureData', [])
+                if bp_list:
+                    sys_total, dia_total, bp_count = 0, 0, 0
+                    log_entries = []
+
+                    for reading in bp_list:
+                        sys = reading.get('systolic')
+                        dia = reading.get('diastolic')
+                        timestamp_raw = reading.get('measurementTimestampLocal') or reading.get('measurementTimestamp') or ""
+
+                        if sys and dia:
+                            sys_total += sys
+                            dia_total += dia
+                            bp_count += 1
+                            
+                            # Extract HH:MM from timestamp (e.g., "2026-03-10T08:10:00.0")
+                            time_str = "Unknown"
+                            if "T" in timestamp_raw:
+                                try:
+                                    time_str = timestamp_raw.split("T")[1][:5]
+                                except:
+                                    pass
+                            
+                            log_entries.append(f"{time_str}: {sys}/{dia}")
+
+                    if bp_count > 0:
+                        blood_pressure_systolic = round(sys_total / bp_count)
+                        blood_pressure_diastolic = round(dia_total / bp_count)
+                        bp_log_raw = " | ".join(log_entries)
+
+            # Fallback if dedicated endpoint is empty but stats endpoint has a single entry
+            if blood_pressure_systolic is None and stats: 
+                if stats.get('systolic') and stats.get('diastolic'):
+                    blood_pressure_systolic = stats.get('systolic')
+                    blood_pressure_diastolic = stats.get('diastolic')
+                    bp_log_raw = f"Daily: {blood_pressure_systolic}/{blood_pressure_diastolic}"
             # No else needed, as they are initialized to None
 
             # Get summary metrics
@@ -270,6 +314,7 @@ class GarminClient:
                 body_fat=body_fat,
                 blood_pressure_systolic=blood_pressure_systolic,
                 blood_pressure_diastolic=blood_pressure_diastolic,
+                bp_log_raw=bp_log_raw,
                 active_calories=active_calories,
                 resting_calories=resting_calories,
                 resting_heart_rate=resting_heart_rate,

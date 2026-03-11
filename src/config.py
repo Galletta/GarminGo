@@ -12,6 +12,7 @@ class GarminMetrics:
     body_fat: Optional[float] = None
     blood_pressure_systolic: Optional[int] = None
     blood_pressure_diastolic: Optional[int] = None
+    bp_log_raw: Optional[str] = None  # NEW: For the text log
     active_calories: Optional[int] = None
     resting_calories: Optional[int] = None
     resting_heart_rate: Optional[int] = None
@@ -34,12 +35,11 @@ class GarminMetrics:
     overnight_hrv: Optional[int] = None
     hrv_status: Optional[str] = None
     steps: Optional[int] = None
-    # TODO: To add a new attribute, just add it here!
 
 # 2. The Headers list defines the output order and names
 HEADERS = [
     "Date", "Sleep Score", "Sleep Length", "HRV (ms)", "HRV Status", "Weight (kg)", "Body Fat %",
-    "Blood Pressure Systolic", "Blood Pressure Diastolic", "Active Calories",
+    "Blood Pressure Systolic", "Blood Pressure Diastolic", "BP Log (Raw)", "Active Calories",
     "Resting Calories", "Resting Heart Rate", "Average Stress", "Training Status",
     "VO2 Max Running", "VO2 Max Cycling", "Intensity Minutes", "All Activity Count",
     "Running Activity Count", "Running Distance (km)", "Cycling Activity Count",
@@ -53,10 +53,11 @@ HEADER_TO_ATTRIBUTE_MAP = {
     "Date": "date",
     "Sleep Score": "sleep_score",
     "Sleep Length": "sleep_length",
-    "Weight (kg)": "weight", # Note: Changed from weight_kg for simplicity
+    "Weight (kg)": "weight", 
     "Body Fat %": "body_fat",
     "Blood Pressure Systolic": "blood_pressure_systolic",
     "Blood Pressure Diastolic": "blood_pressure_diastolic",
+    "BP Log (Raw)": "bp_log_raw", # NEW: Mapping the log
     "Active Calories": "active_calories",
     "Resting Calories": "resting_calories",
     "Resting Heart Rate": "resting_heart_rate",
