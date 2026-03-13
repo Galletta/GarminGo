@@ -1,3 +1,4 @@
+import json
 from datetime import date
 from typing import Dict, Any, Optional
 import asyncio
@@ -112,8 +113,8 @@ class GarminClient:
                     data = await asyncio.get_event_loop().run_in_executor(
                         None, self.client.get_blood_pressure, target_date.isoformat()
                     )
-                    # ADD THIS LOG LINE BELOW:
-                    logger.info(f"DEBUG BP for {target_date.isoformat()}: {data}")
+                    # BP debugging
+                    # logger.info(f"DEBUG BP for {target_date.isoformat()}: {data}")
                     return data
                 except Exception as e:
                     logger.debug(f"No BP data found or error fetching BP: {e}")
@@ -125,12 +126,31 @@ class GarminClient:
             )
 
             # Debug logging
-            logger.debug(f"Raw stats data: {stats}")
-            logger.debug(f"Raw sleep data: {sleep_data}")
-            logger.debug(f"Raw activities data: {activities}")
-            logger.debug(f"Raw summary data: {summary}")
-            logger.debug(f"Raw training status data: {training_status}")
-            logger.debug(f"Raw HRV payload: {hrv_payload}")
+            # logger.debug(f"Raw stats data: {stats}")
+            # logger.debug(f"Raw sleep data: {sleep_data}")
+            # logger.debug(f"Raw activities data: {activities}")
+            # logger.debug(f"Raw summary data: {summary}")
+            # logger.debug(f"Raw training status data: {training_status}")
+            # logger.debug(f"Raw HRV payload: {hrv_payload}")
+
+            # # --- TEMPORARY GARMIN RAW DATA DUMP ---
+            # # This will save the raw JSON payloads to the GarminGo/raw_export/ folder
+            # try:
+            #     # Ensure the target directory exists before saving
+            #     export_dir = "raw_export"
+            #     os.makedirs(export_dir, exist_ok=True)
+                
+            #     with open(f"{export_dir}/raw_stats_{target_date}.json", "w") as f:
+            #         json.dump(stats, f, indent=4)
+            #     with open(f"{export_dir}/raw_summary_{target_date}.json", "w") as f:
+            #         json.dump(summary, f, indent=4)
+            #     with open(f"{export_dir}/raw_activities_{target_date}.json", "w") as f:
+            #         json.dump(activities, f, indent=4)
+                    
+            #     logger.info(f"Saved raw JSON files for {target_date} in {export_dir}/!")
+            # except Exception as e:
+            #     logger.error(f"Failed to save raw JSON: {e}")
+            # # --------------------------------
 
             # Process HRV data
             overnight_hrv_value: Optional[int] = None
@@ -163,31 +183,7 @@ class GarminClient:
             tennis_count = 0
             tennis_duration = 0
 
-            if activities:
-                for activity in activities:
-                    activity_type = activity.get('activityType', {})
-                    type_key = activity_type.get('typeKey', '').lower()
-                    parent_type_id = activity_type.get('parentTypeId')
-
-                    if 'run' in type_key or parent_type_id == 1:  # 1 is running
-                        running_count += 1
-                        running_distance += activity.get('distance', 0) / 1000  # Convert to km
-                    elif 'virtual_ride' in type_key or 'cycling' in type_key or parent_type_id == 2:  # 2 is cycling
-                        cycling_count += 1
-                        cycling_distance += activity.get('distance', 0) / 1000
-                    elif 'strength' in type_key:
-                        strength_count += 1
-                        strength_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
-                    elif 'cardio' in type_key:
-                        cardio_count += 1
-                        cardio_duration += activity.get('duration', 0) / 60
-                    elif 'tennis' in type_key: # Added for Tennis
-                        tennis_count += 1
-                        tennis_duration += activity.get('duration', 0) / 60 # Convert seconds to minutes
-            else:
-                logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
-
-            # Initialize metrics to None, as per GarminMetrics dataclass defaults
+# Initialize metrics to None, as per GarminMetrics dataclass defaults
             sleep_score: Optional[float] = None
             sleep_length: Optional[float] = None
             weight: Optional[float] = None
@@ -204,29 +200,161 @@ class GarminClient:
             vo2max_cycling: Optional[float] = None
             training_status_phrase: Optional[str] = None
             steps: Optional[int] = None
+            # Initialize all metrics to None (prevents "Variable not defined" errors)
+            stress_duration: Optional[float] = None
+            rest_duration: Optional[float] = None
+            activity_duration: Optional[float] = None
+            body_battery_high = body_battery_low = body_battery_change = None
+            avg_spo2 = lowest_spo2 = respiration_avg = lowest_respiration = None
+            breathing_variations = restless_moments = avg_overnight_hr = avg_skin_temp_change = None
+            deep_sleep = light_sleep = rem_sleep = awake_sleep = None
+            # Initialize Longevity and Training variables
+            sedentary_time_hrs = high_stress_duration_hrs = medium_stress_duration_hrs = low_stress_duration_hrs = None
+            bb_charged = bb_drained = None
+            time_in_zone_1_mins = time_in_zone_2_mins = time_in_zone_3_mins = time_in_zone_4_mins = time_in_zone_5_mins = None
+            training_stress_score = intensity_factor = None
+            norm_power = max_20_min_power = aerobic_training_effect = anaerobic_training_effect = None
+
+            if activities:
+                time_in_zone_1_seconds = 0
+                time_in_zone_2_seconds = 0
+                time_in_zone_3_seconds = 0
+                time_in_zone_4_seconds = 0
+                time_in_zone_5_seconds = 0
+                tss_total = 0.0
+                max_if = max_np = max_20_power = max_aerobic_te = max_anaerobic_te = 0.0
+
+                for activity in activities:
+                    activity_type = activity.get('activityType', {})
+                    type_key = activity_type.get('typeKey', '').lower()
+                    parent_type_id = activity_type.get('parentTypeId')
+
+                    # Existing logic for counts
+                    if 'run' in type_key or parent_type_id == 1:
+                        running_count += 1
+                        running_distance += activity.get('distance', 0) / 1000  # Convert to km
+                    elif 'ride' in type_key or 'cycling' in type_key or 'bike' in type_key or parent_type_id == 2:
+                        cycling_count += 1
+                        cycling_distance += activity.get('distance', 0) / 1000
+                    elif 'strength' in type_key:
+                        strength_count += 1
+                        strength_duration += activity.get('duration', 0) / 60  # Convert seconds to minutes
+                    elif 'cardio' in type_key:
+                        cardio_count += 1
+                        cardio_duration += activity.get('duration', 0) / 60
+                    elif 'tennis' in type_key: 
+                        tennis_count += 1
+                        tennis_duration += activity.get('duration', 0) / 60 
+
+                    # NEW: Aggregate Advanced Training Metrics
+                    # We take the max of HR Zone 2 or Power Zone 2 to avoid double counting
+                    z1_hr = activity.get('hrTimeInZone_1', 0) or 0
+                    z1_power = activity.get('powerTimeInZone_1', 0) or 0
+                    time_in_zone_1_seconds += max(z1_hr, z1_power)
+
+                    z2_hr = activity.get('hrTimeInZone_2', 0) or 0
+                    z2_power = activity.get('powerTimeInZone_2', 0) or 0
+                    time_in_zone_2_seconds += max(z2_hr, z2_power)
+
+                    z3_hr = activity.get('hrTimeInZone_3', 0) or 0
+                    z3_power = activity.get('powerTimeInZone_3', 0) or 0
+                    time_in_zone_3_seconds += max(z3_hr, z3_power)
+
+                    z4_hr = activity.get('hrTimeInZone_4', 0) or 0
+                    z4_power = activity.get('powerTimeInZone_4', 0) or 0
+                    time_in_zone_4_seconds += max(z4_hr, z4_power)
+
+                    z5_hr = activity.get('hrTimeInZone_5', 0) or 0
+                    z5_power = activity.get('powerTimeInZone_5', 0) or 0
+                    time_in_zone_5_seconds += max(z5_hr, z5_power)
+
+                    tss_total += activity.get('trainingStressScore', 0) or 0
+                    
+                    a_if = activity.get('intensityFactor', 0) or 0
+                    if a_if > max_if: max_if = a_if
+
+                    np = activity.get('normPower', 0) or 0
+                    if np > max_np: max_np = np
+
+                    m20 = activity.get('max20MinPower', 0) or 0
+                    if m20 > max_20_power: max_20_power = m20
+
+                    aero_te = activity.get('aerobicTrainingEffect', 0) or 0
+                    if aero_te > max_aerobic_te: max_aerobic_te = aero_te
+
+                    anaero_te = activity.get('anaerobicTrainingEffect', 0) or 0
+                    if anaero_te > max_anaerobic_te: max_anaerobic_te = anaero_te
+
+                # Finalize Activity Metrics (convert seconds to mins, format nicely)
+                if time_in_zone_1_seconds > 0: time_in_zone_1_mins = round(time_in_zone_1_seconds / 60, 2)
+                if time_in_zone_2_seconds > 0: time_in_zone_2_mins = round(time_in_zone_2_seconds / 60, 2)
+                if time_in_zone_3_seconds > 0: time_in_zone_3_mins = round(time_in_zone_3_seconds / 60, 2)
+                if time_in_zone_4_seconds > 0: time_in_zone_4_mins = round(time_in_zone_4_seconds / 60, 2)
+                if time_in_zone_5_seconds > 0: time_in_zone_5_mins = round(time_in_zone_5_seconds / 60, 2)
+                if tss_total > 0: training_stress_score = round(tss_total, 1)
+                if max_if > 0: intensity_factor = round(max_if, 3)
+                if max_np > 0: norm_power = round(max_np, 1)
+                if max_20_power > 0: max_20_min_power = round(max_20_power, 1)
+                if max_aerobic_te > 0: aerobic_training_effect = round(max_aerobic_te, 1)
+                if max_anaerobic_te > 0: anaerobic_training_effect = round(max_anaerobic_te, 1)
+            else:
+                logger.warning(f"Activities data for {target_date} is None. Activity metrics will be blank.")
 
             # Process sleep data
             if sleep_data:
                 sleep_dto = sleep_data.get('dailySleepDTO', {})
+                if sleep_data:
+                    # A. ROOT LEVEL Metrics (Garmin-Grafana mapping)
+                    # These live at the top level of the sleep_data object
+                    restless_moments = sleep_data.get("restlessMomentsCount")
+                    avg_overnight_hr = sleep_data.get("restingHeartRate")
+                    avg_skin_temp_change = sleep_data.get("avgSkinTempDeviationC")
+                
+                sleep_dto = sleep_data.get('dailySleepDTO', {})
                 if sleep_dto:
+                    # B. DTO LEVEL Metrics
+                    # Respiration & SpO2
+                    avg_spo2 = sleep_dto.get('averageSpO2Value')
+                    lowest_spo2 = sleep_dto.get('lowestSpO2Value')
+                    respiration_avg = sleep_dto.get('averageRespirationValue')
+                    lowest_respiration = sleep_dto.get('lowestRespirationValue')
+                    # Breathing Disturbance (if supported by your device)
+                    breathing_variations = sleep_dto.get('breathingDisruptionSeverity') # breathingDisturbanceIndex
+                    
+                    # Sleep Score and Stages
                     sleep_score = sleep_dto.get('sleepScores', {}).get('overall', {}).get('value')
+                    deep_sleep = (sleep_dto.get('deepSleepSeconds', 0) or 0) / 3600
+                    light_sleep = (sleep_dto.get('lightSleepSeconds', 0) or 0) / 3600
+                    rem_sleep = (sleep_dto.get('remSleepSeconds', 0) or 0) / 3600
+                    awake_sleep = (sleep_dto.get('awakeSleepSeconds', 0) or 0) / 3600
+                    
+                    # Sleep Duration
                     sleep_time_seconds = sleep_dto.get('sleepTimeSeconds')
-                    if sleep_time_seconds is not None and sleep_time_seconds > 0:
-                        sleep_length = sleep_time_seconds / 3600  # Convert to hours
+                    if sleep_time_seconds and sleep_time_seconds > 0:
+                        sleep_length = sleep_time_seconds / 3600
                 else:
-                    logger.warning(f"Daily sleep DTO not found in sleep data for {target_date}.")
+                    logger.warning(f"Daily sleep DTO not found for {target_date}.")
             else:
                 logger.warning(f"Sleep data for {target_date} is None. Sleep metrics will be blank.")
 
-            # Get weight and body fat
             if stats:
-                weight = stats.get('weight', 0) / 1000 if stats.get('weight') else None  # Convert grams to kg
+                # Get weight and body fat
+                weight = stats.get('weight', 0) / 1000 if stats.get('weight') else None  
                 body_fat = stats.get('bodyFat')
+
+                # Body Battery (High/Low & Charge/Drain)
+                body_battery_high = stats.get('bodyBatteryHighestValue')
+                body_battery_low = stats.get('bodyBatteryLowestValue')
+                bb_charged = stats.get('bodyBatteryChargedValue')
+                bb_drained = stats.get('bodyBatteryDrainedValue')
+                
+                # CALCULATE Body Battery Change
+                if body_battery_high is not None and body_battery_low is not None:
+                    body_battery_change = body_battery_high - body_battery_low
             else:
                 logger.warning(f"Stats data for {target_date} is None. Weight and body fat metrics will be blank.")
 
             # Get blood pressure (if available)
-            # NEW: Process Dedicated Blood Pressure Data
             if bp_payload and isinstance(bp_payload, dict):
                 # Garmin nests the actual readings inside measurementSummaries
                 summaries = bp_payload.get('measurementSummaries', [])
@@ -272,7 +400,6 @@ class GarminClient:
                     bp_log_raw = f"Daily: {blood_pressure_systolic}/{blood_pressure_diastolic}"
             # No else needed, as they are initialized to None
 
-            # Get summary metrics
             if summary:
                 active_calories = summary.get('activeKilocalories')
                 resting_calories = summary.get('bmrKilocalories')
@@ -280,6 +407,29 @@ class GarminClient:
                 resting_heart_rate = summary.get('restingHeartRate')
                 average_stress = summary.get('averageStressLevel')
                 steps = summary.get('totalSteps')
+                
+                # Safely convert durations to hours AND round them so Google Sheets doesn't reject them
+                raw_stress = summary.get("stressDuration")
+                stress_duration = round(raw_stress / 3600, 2) if raw_stress else None
+                
+                raw_rest = summary.get("restStressDuration")
+                rest_duration = round(raw_rest / 3600, 2) if raw_rest else None
+                
+                raw_activity = summary.get("activityStressDuration")
+                activity_duration = round(raw_activity / 3600, 2) if raw_activity else None
+
+                # Sedentary and Detailed Stress
+                raw_sedentary = summary.get("sedentarySeconds")
+                sedentary_time_hrs = round(raw_sedentary / 3600, 2) if raw_sedentary else None
+
+                raw_high = summary.get("highStressDuration")
+                high_stress_duration_hrs = round(raw_high / 3600, 2) if raw_high else None
+
+                raw_medium = summary.get("mediumStressDuration")
+                medium_stress_duration_hrs = round(raw_medium / 3600, 2) if raw_medium else None
+
+                raw_low = summary.get("lowStressDuration")
+                low_stress_duration_hrs = round(raw_low / 3600, 2) if raw_low else None
             else:
                 logger.warning(f"User summary data for {target_date} is None. Summary metrics will be blank.")
 
@@ -347,7 +497,42 @@ class GarminClient:
                 tennis_activity_duration=tennis_duration, # Added for Tennis
                 overnight_hrv=overnight_hrv_value,
                 hrv_status=hrv_status_value,
-                steps=steps
+                steps=steps,
+                stress_duration=stress_duration,
+                rest_duration=rest_duration,
+                activity_duration=activity_duration,
+                body_battery_high=body_battery_high,
+                body_battery_low=body_battery_low,
+                body_battery_change=body_battery_change,
+                avg_spo2=avg_spo2,
+                lowest_spo2=lowest_spo2,
+                respiration_avg=respiration_avg,
+                lowest_respiration=lowest_respiration,
+                breathing_variations=breathing_variations,
+                restless_moments=restless_moments,
+                avg_overnight_hr=avg_overnight_hr,
+                avg_skin_temp_change=avg_skin_temp_change,
+                deep_sleep=deep_sleep,
+                light_sleep=light_sleep,
+                rem_sleep=rem_sleep,
+                awake_sleep=awake_sleep,
+                sedentary_time_hrs=sedentary_time_hrs,
+                high_stress_duration_hrs=high_stress_duration_hrs,
+                medium_stress_duration_hrs=medium_stress_duration_hrs,
+                low_stress_duration_hrs=low_stress_duration_hrs,
+                bb_charged=bb_charged,
+                bb_drained=bb_drained,
+                time_in_zone_1_mins=time_in_zone_1_mins,
+                time_in_zone_2_mins=time_in_zone_2_mins,
+                time_in_zone_3_mins=time_in_zone_3_mins,
+                time_in_zone_4_mins=time_in_zone_4_mins,
+                time_in_zone_5_mins=time_in_zone_5_mins,
+                training_stress_score=training_stress_score,
+                intensity_factor=intensity_factor,
+                norm_power=norm_power,
+                max_20_min_power=max_20_min_power,
+                aerobic_training_effect=aerobic_training_effect,
+                anaerobic_training_effect=anaerobic_training_effect
             )
 
         except Exception as e:

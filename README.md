@@ -14,11 +14,8 @@ Once you have the files here, Python installed, and the project set up (step-by-
 * [🔄 The Ultimate Health Data Pipeline](#-the-ultimate-health-data-pipeline-omron---garmin---sheets)
 * [🚀 Quick Start: Get Your Data as a CSV File](#-quick-start-get-your-data-as-a-csv-file)
 * [⚙️ Advanced Options & Google Sheets Integration](#️-advanced-options--google-sheets-integration)
-    * [Optional: Use a Python Virtual Environment](#optional-use-a-python-virtual-environment)
-    * [Optional: Running as a Scheduled Task](#optional-running-as-a-scheduled-task)
-    * [🔑 Google API Setup (for Google Sheets Output)](#-google-api-setup-for-google-sheets-output)
-    * [▶️ Running for Google Sheets Output:](#️-running-for-google-sheets-output)
 * [📊 Available Metrics](#-available-metrics)
+* [📖 Metric Dictionary & Data Sources](#-metric-dictionary--data-sources)
 * [🛠️ Troubleshooting](#️-troubleshooting)
 * [🔒 Security Notes](#-security-notes)
 * [📜 License](#-license)
@@ -49,10 +46,10 @@ Once you have the files here, Python installed, and the project set up (step-by-
 
 This version of GarminGo has been heavily modified to support **fully automated, headless, and containerized deployments** (like running on a server via Docker and Cron).
 
-* **Headless Automation & Cron Support:** Bypasses the interactive prompts by using Typer CLI arguments. You can pass `--start-date`, `--end-date`, `--profile`, and `--output-type` directly in your execution command. It also includes "headless protection" (`sys.stdin.isatty()`) so the script will gracefully exit with an error instead of hanging infinitely if accidentally run in the background without arguments.
-* **Persistent Token Storage:** Re-engineered the authentication flow using `garth.sso` and the `keyrings.alt` library. Instead of requiring a system keyring (which doesn't exist in headless Docker environments) or constantly prompting for a password and MFA code, the script saves its session safely to a `config.tokens.json` file.
-* **Smart Google Sheets Sync (The "Overwrite Loop"):** The original script blindly appended new rows every time it ran. This fork actively reads the `Date` column in your Google Sheet first. If it finds the date it's currently syncing, it **overwrites** that row with fresh data. If the date doesn't exist, it appends a new row. This guarantees zero duplicate rows, even if you run the sync every hour!
-* **Project Security:** Fortified the `.gitignore` file to ensure sensitive tokens (`*.json`), environments (`.env`, `venv/`), and logs (`logs/`) are never accidentally pushed to a public repository.
+* **Headless Automation & Cron Support:** Bypasses the interactive prompts by using Typer CLI arguments. You can pass `--start-date`, `--end-date`, `--profile`, and `--output-type` directly in your execution command. 
+* **Persistent Token Storage:** Re-engineered the authentication flow using `garth.sso` and the `keyrings.alt` library. Instead of requiring a system keyring or constantly prompting for a password and MFA code, the script saves its session safely to a `config.tokens.json` file.
+* **Smart Google Sheets Sync (The "Overwrite Loop"):** The original script blindly appended new rows every time it ran. This fork actively reads the `Date` column in your Google Sheet first. If it finds the date it's currently syncing, it **overwrites** that row with fresh data. If the date doesn't exist, it appends a new row. This guarantees zero duplicate rows!
+* **Project Security:** Fortified the `.gitignore` file to ensure sensitive tokens, environments, and logs are never accidentally pushed to a public repository.
 
 ---
 
@@ -68,80 +65,45 @@ You can chain GarminGo together with a tool called **[omramin](https://github.co
 ### The Docker & Cron Automation Setup
 Assuming you have both scripts running inside a Docker container (e.g., `garmingo-service`), you can automate the entire loop by adding a single line to your server's root crontab (`crontab -e`).
 
-First, make sure `omramin` is configured to use a file-based keyring to prevent token amnesia:
-`--keyring-backend file --keyring-file /root/.config/omramin/config.tokens.json`
-
-Then, paste this "Super Sync" command into your crontab to run the pipeline automatically at the top of every hour:
-
 ```bash
 # Sync Omron to Garmin, then Garmin to Sheets every hour (Logs saved to /var/log/garmin_sync.log)
 0 * * * * ( /usr/bin/docker exec garmingo-service omramin --keyring-backend file --keyring-file /root/.config/omramin/config.tokens.json sync --days 1 && /usr/bin/docker exec garmingo-service python3 src/main.py cli-sync --start-date $(date +\%Y-\%m-\%d) --end-date $(date +\%Y-\%m-\%d) --profile USER1 --output-type sheets ) >> /var/log/garmin_sync.log 2>&1
 
 ```
 
-**Note:** The `&&` ensures that the Google Sheets sync *only* triggers if the `omramin` upload succeeds, and `$(date +\%Y-\%m-\%d)` automatically calculates today's date for GarminGo.
-
 ---
 
 ## 🚀 Quick Start: Get Your Data as a CSV File
 
-This is the easiest way to get started and export your Garmin data.
-
 **1. 🐍 Install Python:**
 
-* Make sure you have Python 3.9 or newer installed. You can download it from [python.org](https://www.python.org/downloads/).
+* Make sure you have Python 3.9 or newer installed.
 * During install, ensure you check "Add Python to PATH."
 
 **2. 📄 Get the Code:**
 
-* Go to the GarminGo GitHub repository page (you are probably already there).
-* Click the green "Code" button (at the top right of the page) and select **"Download ZIP"**.
-* Extract the downloaded ZIP file to a folder on your computer (e.g., `C:\GarminGo` or `/Users/YourName/GarminGo`).
-* *(Advanced users can clone the repository using `git clone ...` if preferred).*
+* Go to the GarminGo GitHub repository page.
+* Click the green "Code" button and select **"Download ZIP"**.
+* Extract the downloaded ZIP file to a folder on your computer.
 
 **3. ✨ Install the Project and Dependencies:**
 
-* **Open PowerShell or Command Prompt (CMD) in the Project Folder:**
-1. Open File Explorer and navigate to the folder where you extracted the downloaded ZIP file (e.g., `GarminGo-main`).
-2. Click in the address bar at the top of File Explorer.
-3. Type `powershell` and press Enter. (Alternatively, type `cmd` and press Enter).
+* Open PowerShell or Command Prompt (CMD) in the Project Folder.
+* Run the following command to install GarminGo and its required libraries:
 
-
-* This opens a terminal window directly in your project folder. You should see the folder path in the prompt (e.g., `PS C:\path\to\GarminGo-main>`).
-
-
-* *(Alternatively, open PowerShell/CMD from the Start Menu and use the `cd` command to navigate: `cd path\to\your\GarminGo-main`)*
-* In the PowerShell or CMD window you just opened, run the following command. This will install GarminGo and all its required libraries (defined in `pyproject.toml`), making the `garmingo` command available in your terminal:
 ```powershell
 pip install .
 
 ```
 
-
-* *(For developers or if you want an "editable" install, which allows your code changes to be reflected immediately without reinstalling, you can use `pip install -e .`)*
-
 **4. ⚙️ Configure Your Garmin Login:**
 
-* In the project folder, find the file named `.env.example`.
-* **Make a copy** of this file and **rename the copy** to just `.env`.
-* Open the `.env` file with a text editor (like Notepad or VS Code).
-* Find the lines starting with `USER1_` and fill in *only* your Garmin Connect email and password:
-```dotenv
-# User Profile 1
-USER1_GARMIN_EMAIL=your_garmin_email@example.com # <-- Put your email here
-USER1_GARMIN_PASSWORD=your_garmin_password     # <-- Put your password here
-USER1_SHEET_ID= # <-- Leave this blank for CSV output
-
-```
-
-
-* Save the `.env` file. (You can add more `USER<N>_` profiles later if needed).
+* In the project folder, make a copy of `.env.example` and rename it to `.env`.
+* Fill in your Garmin Connect email and password.
 
 ---
 
 ## ⚙️ Advanced Options & Google Sheets Integration
-
-This section is for users who want to output data directly to Google Sheets or use Python virtual environments.
 
 ### Optional: Use a Python Virtual Environment
 
@@ -152,22 +114,8 @@ python -m venv venv
 
 ```
 
-Activate the virtual environment (Windows): `.\venv\Scripts\Activate.ps1`
-Then, install the project: `pip install .`
-
-### Optional: Running as a Scheduled Task
-
-For users who wish to run GarminGo non-interactively, command-line arguments can be used. This allows you to specify parameters directly:
-
-```bash
-garmingo cli-sync --start-date YYYY-MM-DD --end-date YYYY-MM-DD --profile YOUR_PROFILE_NAME --output-type <csv_or_sheets>
-
-```
-
 ### 🔑 Google API Setup (for Google Sheets Output)
-
 To send data to Google Sheets, you need to set up Google API credentials:
-
 1. Go to the **Google Cloud Console**, create a project, and enable the **Google Sheets API**.
 2. Go to "APIs & Services" > "Credentials" > "+ CREATE CREDENTIALS" > "OAuth client ID" (Desktop app).
 3. Download the JSON credential file.
@@ -175,39 +123,86 @@ To send data to Google Sheets, you need to set up Google API credentials:
 5. Open your `.env` file and set your Sheet ID (from the Google Sheets URL) in `USER1_SHEET_ID`.
 
 ### ▶️ Running for Google Sheets Output:
-
 ❗**First Run Only:** Your web browser will open asking you to log in to your Google account and grant permission. A `token.pickle` file will be created in your `credentials` folder. From then on, it will sync automatically.
 
 ---
 
 ## 📊 Available Metrics
 
-The tool syncs the following daily metrics from Garmin Connect. *(Note: We recently expanded this list to include new fields, including Blood Pressure from the Omron integration!)*
+This tool has been heavily expanded to pull over 60 distinct health, longevity, and performance metrics directly from the Garmin API.
 
-* **Sleep & Recovery:** Sleep Score, Sleep Length, HRV (Overnight), HRV Status, Resting Heart Rate, Average Stress, Body Battery (if added to your table).
-* **Body Composition & Vitals:** Weight, Body Fat Percentage, **Blood Pressure (Systolic/Diastolic)**.
-* **Fitness & Activity:** Active/Resting Calories, Training Status, VO2 Max (Running/Cycling), Intensity Minutes, **Steps (Daily Step Count)**.
-* **Specific Activities:** Activity Counts, Distances, and Durations (Running, Cycling, Strength, Cardio, Tennis).
+* **The Basics:** Daily Steps, Active/Resting Calories, Sedentary Time, Intensity Minutes.
+* **Body Composition:** Weight, Body Fat %, Blood Pressure (Systolic/Diastolic), BP Logs.
+* **Sleep & Recovery:** Sleep Score, Sleep Stages (Deep, Light, REM, Awake), HRV (ms), HRV Status, Overnight HR, SpO2, Respiration.
+* **Nervous System & Stress:** Body Battery (High/Low/Change/Charged/Drained), Stress Durations (High/Medium/Low), Rest/Activity Durations.
+* **Fitness & Training:** VO2 Max (Running/Cycling), Time in HR Zones 1-5, Aerobic/Anaerobic Training Effect.
+* **Advanced Cycling:** Training Stress Score (TSS), Intensity Factor (IF), Normalized Power (NP), Max 20 Min Power.
 
-*If you add any new custom metric fields to `garmin_client.py`, simply add matching headers to your Google Sheet and they will automatically sync!*
+---
+
+## 📖 Metric Dictionary & Data Sources
+
+Curious what these numbers actually mean or where Garmin gets them? Here is the complete breakdown of the data this script extracts:
+
+### 1. The Basics & Daily Summary (Source: User Summary Payload)
+
+* **Steps:** Total daily step count.
+* **Active Calories:** Calories burned specifically through movement and exercise above your basal metabolic rate.
+* **Resting Calories:** Your BMR (Basal Metabolic Rate); calories burned just staying alive.
+* **Sedentary Time (hrs):** Time spent awake but inactive. *Crucial metric for all-cause mortality risk.*
+* **Intensity Minutes:** Garmin's calculation of moderate (1x) and vigorous (2x) exercise minutes for the week/day.
+
+### 2. Body Composition & Vitals (Source: Stats & BP Payloads)
+
+* **Weight / Body Fat %:** Pulled from Garmin Index scales or manual entry.
+* **Blood Pressure (Sys/Dia):** Pulled from the dedicated blood pressure endpoint (often populated by Omron sync). Averages multiple readings if taken on the same day.
+* **Resting Heart Rate:** Your lowest 30-minute average heart rate measured over a 24-hour period.
+
+### 3. Sleep & Overnight Recovery (Source: Sleep & HRV Payloads)
+
+* **Sleep Score (0-100):** Garmin's overall rating of your sleep quality based on duration, stress, and stages.
+* **Sleep Stages (hrs):** Breakdown of Deep, Light, REM, and Awake times. *Deep sleep drives physical recovery; REM drives cognitive recovery.*
+* **HRV (ms) & Status:** Heart Rate Variability. High HRV means a resilient, relaxed nervous system. Status compares last night's average to your 3-week baseline.
+* **Avg Overnight HR:** Average heart rate while sleeping.
+* **SpO2 (Avg/Lowest):** Blood oxygen saturation levels during sleep.
+* **Respiration / Breathing Variations:** Breaths per minute and disturbances (useful for detecting sleep apnea or illness).
+
+### 4. Nervous System, Stress & Body Battery (Source: Stats & Summary Payloads)
+
+* **Body Battery (0-100):** Garmin's proprietary energy metric combining HRV, stress, and sleep.
+* *BB High / Low:* The peak and floor of your energy for the day.
+* *BB Charged / Drained:* The total amount of energy gained (recovery) vs. lost (stress/activity) over 24 hours.
+
+
+* **Average Stress (0-100):** Daily average of physiological stress (measured via inverse HRV).
+* **Stress Durations (hrs):** Time spent in High, Medium, and Low sympathetic nervous system states.
+* **Rest Duration (hrs):** Time spent in a parasympathetic (rest and digest) state while awake.
+
+### 5. Fitness & General Training (Source: Training Status & Activities)
+
+* **VO2 Max (Running/Cycling):** The maximum rate of oxygen consumption your body can utilize during intense exercise.
+* **Time in Zones 1-5 (mins):** The total time spent in specific Heart Rate or Power zones across all activities for the day. *Zone 2 is critical for mitochondrial health and endurance base building.*
+* **Aerobic / Anaerobic TE (0.0 - 5.0):** Training Effect. Measures how much a specific workout improved your aerobic or anaerobic capacity.
+
+### 6. Advanced Cycling Dynamics (Source: Activities Payload)
+
+* **TSS (Training Stress Score):** A composite number measuring the physiological toll of a ride based on duration and intensity.
+* **Intensity Factor (IF):** How intense a ride was relative to your Functional Threshold Power (FTP). An IF of 1.0 means you rode exactly at your FTP for the entire ride.
+* **Normalized Power (NP):** An adjusted average power metric that accounts for the physiological cost of rapid changes in effort (surges, coasting).
+* **Max 20 Min Power:** Your highest average wattage sustained for 20 continuous minutes.
 
 ---
 
 ## 🛠️ Troubleshooting
 
 * **`garmingo` Command Not Found:** Ensure your Python scripts directory is added to your system's PATH variable.
-* **Garmin Login Issues:** Double-check your `.env` credentials and ensure MFA is correctly handled using the automated persistence flow.
-* **Google Sheets Access Denied:** Ensure the Google Sheets API is enabled in Google Cloud and the account authorized has edit access to the target sheet. If you change scopes, you may need to delete `credentials/token.pickle` to force a re-login.
-
----
+* **Garmin Login Issues:** Double-check your `.env` credentials.
+* **Google Sheets Access Denied:** Ensure the Google Sheets API is enabled in Google Cloud.
 
 ## 🔒 Security Notes
-
 * Never share or commit your `.env` file to Git or any public place, as it contains your passwords.
 * The `.gitignore` file is already set up to prevent accidental commits of `.env` and the `credentials` folder.
 * Keep your Google `client_secret.json` file secure.
-
----
 
 ## 📜 License
 
