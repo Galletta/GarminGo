@@ -21,3 +21,8 @@ logs/
 venv/
 ENV/
 build/
+
+# Ignore mapped credential volumes
+omramin/
+keyring/
+garth/

@@ -1,0 +1,15 @@
+services:
+   omramin-garmingo:
+      build: .
+      container_name: omramin-garmingo
+      restart: unless-stopped
+      volumes:
+       - ./garmingo:/app/garmingo
+       - ./omramin:/root/.config/omramin
+       # This line saves your login tokens permanently:
+       - ./keyring:/root/.local/share/python_keyring
+       - ./garth:/root/.garth
+     environment:
+       - TZ=Europe/Bratislava
+       # This forces the script to use the text-based vault:
+       - PYTHON_KEYRING_BACKEND=keyrings.alt.file.PlaintextKeyring
