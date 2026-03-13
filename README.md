@@ -12,6 +12,7 @@ Once you have the files here, Python installed, and the project set up (step-by-
 * [✨ Screenshots](#-screenshots)
 * [🌟 Advanced Features (Added in this Fork)](#-advanced-features-added-in-this-fork)
 * [🔄 The Ultimate Health Data Pipeline](#-the-ultimate-health-data-pipeline-omron---garmin---sheets)
+* [🛠️ Technical Documentation: Sync Pipeline](#️-technical-documentation-sync-pipeline)
 * [🚀 Quick Start: Get Your Data as a CSV File](#-quick-start-get-your-data-as-a-csv-file)
 * [⚙️ Advanced Options & Google Sheets Integration](#️-advanced-options--google-sheets-integration)
 * [📊 Available Metrics](#-available-metrics)
@@ -73,12 +74,114 @@ Assuming you have both scripts running inside a Docker container (e.g., `garming
 
 ---
 
+## 🛠️ Technical Documentation: Sync Pipeline
+
+### 1. Project Overview
+
+This project is an automated, containerized data pipeline that synchronizes health data from Omron and Garmin, ultimately exporting over 60 physiological metrics (the "Kitchen Sink") directly to a formatted Google Sheet.
+
+* **Repository:** `https://github.com/Galletta/GarminGo`
+* **Host Environment:** Fujitsu Linux Server (IP: `192.168.0.122`)
+* **Deployment Path:** `/opt/garmin-sync`
+* **Execution Schedule:** Daily at 08:10 AM (Europe/Bratislava)
+
+### 2. Architecture & Containerization
+
+The entire pipeline is packaged into a single Docker container named **`omramin-garmingo`**. This ensures the application is highly portable and isolated from the host server's system packages.
+
+**Base Environment:**
+
+* **Image:** `python:3.11-slim`
+* **Installed System Packages:** `cron`, `git`, `tzdata`
+* **Timezone:** `Europe/Bratislava` (configured via `docker-compose.yml`)
+
+**Docker Compose Configuration:**
+The `docker-compose.yml` file acts as the Infrastructure as Code (IaC) blueprint. It relies on volume mapping to ensure that sensitive credential tokens are stored safely on the host machine and are not wiped out when the container is rebuilt.
+
+**Mapped Volumes:**
+
+* `./garmingo:/app/garmingo`
+* `./omramin:/root/.config/omramin` (Omron tokens)
+* `./keyring:/root/.local/share/python_keyring` (Plaintext keyring vault)
+* `./garth:/root/.garth` (Garmin session tokens)
+
+**Key Environment Variables:**
+
+* `PYTHON_KEYRING_BACKEND=keyrings.alt.file.PlaintextKeyring` (Forces Python to use a file-based keyring, necessary for headless server environments without a GUI keychain).
+
+### 3. Automation & Scheduling (Cron)
+
+The automation is handled by a custom `crontab` file injected directly into the container at `/etc/cron.d/sync-jobs`.
+
+**The Cron Job:**
+The task is scheduled via the following cron expression:
+
+```text
+10 8 * * *
+
+```
+
+At 08:10 AM daily, the container executes a chained command:
+
+1. **Omron Sync:** `omramin --keyring-backend file --keyring-file /root/.config/omramin/config.tokens.json sync --days 1`
+2. **Garmin to Sheets Sync:** `python3 src/main.py cli-sync --start-date $(date +\%Y-\%m-\%d) --end-date $(date +\%Y-\%m-\%d) --profile USER1 --output-type sheets`
+3. **Log Routing:** `> /proc/1/fd/1 2>&1` (This forces the cron job's background output to bypass the hidden cron logs and print directly to the main Docker container logs so it can be viewed externally).
+
+*Note: The `crontab` file must strictly end with an empty newline character (`\n`) to be parsed correctly by the POSIX cron daemon.*
+
+### 4. Security & Credentials Management
+
+To maintain a public GitHub repository while handling sensitive health and Google Drive data, strict `.gitignore` rules are enforced.
+
+**Ignored (Secured) Files & Directories:**
+
+* `.env` (Contains raw passwords and API keys)
+* `*.json` (Protects Google Drive `credentials.json` and Omron tokens)
+* `omramin/`, `keyring/`, `garth/` (Mapped volumes containing active session tokens)
+
+*Disaster Recovery:* A compressed backup of these credentials (`credentials_backup.tar.gz`) is maintained off-server for quick restoration.
+
+### 5. Maintenance & Useful Commands
+
+All administrative commands should be run from the `/opt/garmin-sync` directory on the host server.
+
+* **View Daily Sync Logs:**
+
+```bash
+docker logs omramin-garmingo
+
+```
+
+* **Manually Trigger a Sync inside the Container:**
+
+```bash
+docker exec omramin-garmingo sh -c "cd /app && python3 src/main.py cli-sync --start-date \$(date +%Y-%m-%d) --end-date \$(date +%Y-%m-%d) --profile USER1 --output-type sheets"
+
+```
+
+* **Pull Code Updates and Rebuild:**
+
+```bash
+git pull origin main
+docker compose up -d --build
+
+```
+
+* **Check Internal Container Cron Status:**
+
+```bash
+docker exec omramin-garmingo crontab -l
+
+```
+
+---
+
 ## 🚀 Quick Start: Get Your Data as a CSV File
 
 **1. 🐍 Install Python:**
 
 * Make sure you have Python 3.9 or newer installed.
-* During install, ensure you check "Add Python to PATH."
+* During install, ensure you check "Add Python to PATH".
 
 **2. 📄 Get the Code:**
 
@@ -115,7 +218,9 @@ python -m venv venv
 ```
 
 ### 🔑 Google API Setup (for Google Sheets Output)
+
 To send data to Google Sheets, you need to set up Google API credentials:
+
 1. Go to the **Google Cloud Console**, create a project, and enable the **Google Sheets API**.
 2. Go to "APIs & Services" > "Credentials" > "+ CREATE CREDENTIALS" > "OAuth client ID" (Desktop app).
 3. Download the JSON credential file.
@@ -123,6 +228,7 @@ To send data to Google Sheets, you need to set up Google API credentials:
 5. Open your `.env` file and set your Sheet ID (from the Google Sheets URL) in `USER1_SHEET_ID`.
 
 ### ▶️ Running for Google Sheets Output:
+
 ❗**First Run Only:** Your web browser will open asking you to log in to your Google account and grant permission. A `token.pickle` file will be created in your `credentials` folder. From then on, it will sync automatically.
 
 ---
@@ -172,8 +278,6 @@ Curious what these numbers actually mean or where Garmin gets them? Here is the 
 * **Body Battery (0-100):** Garmin's proprietary energy metric combining HRV, stress, and sleep.
 * *BB High / Low:* The peak and floor of your energy for the day.
 * *BB Charged / Drained:* The total amount of energy gained (recovery) vs. lost (stress/activity) over 24 hours.
-
-
 * **Average Stress (0-100):** Daily average of physiological stress (measured via inverse HRV).
 * **Stress Durations (hrs):** Time spent in High, Medium, and Low sympathetic nervous system states.
 * **Rest Duration (hrs):** Time spent in a parasympathetic (rest and digest) state while awake.
@@ -200,6 +304,7 @@ Curious what these numbers actually mean or where Garmin gets them? Here is the 
 * **Google Sheets Access Denied:** Ensure the Google Sheets API is enabled in Google Cloud.
 
 ## 🔒 Security Notes
+
 * Never share or commit your `.env` file to Git or any public place, as it contains your passwords.
 * The `.gitignore` file is already set up to prevent accidental commits of `.env` and the `credentials` folder.
 * Keep your Google `client_secret.json` file secure.
