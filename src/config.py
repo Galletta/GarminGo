@@ -55,6 +55,9 @@ class GarminMetrics:
     avg_overnight_hr: Optional[int] = None
     restless_moments: Optional[int] = None
     avg_skin_temp_change: Optional[float] = None
+    acute_training_load: Optional[float] = None
+    chronic_training_load: Optional[float] = None
+    daily_training_load: Optional[float] = None
     
     # Sleep Stages (Hours)
     deep_sleep: Optional[float] = None
@@ -87,7 +90,7 @@ class GarminMetrics:
 # 2. The Headers list defines the output order and names
 HEADERS = [
     # --- 1. THE BASICS & DAILY SUMMARY ---
-    "Date", "Steps", "Active Calories", "Resting Calories", "Sedentary Time (hrs)", 
+    "Date", "Steps", "Daily Active Calories", "Daily Resting Calories", "Sedentary Time (hrs)", 
     "Intensity Minutes", "All Activity Count",
 
     # --- 2. BODY COMPOSITION & VITALS ---
@@ -95,10 +98,11 @@ HEADERS = [
     #"BP Systolic Avg", "BP Diastolic Avg",
     "BP Log Raw", "Resting Heart Rate",
 
-    # --- 3. SLEEP & OVERNIGHT RECOVERY ---
+    # --- 3. SLEEP & RECOVERY ---
     "Sleep Score", "Sleep Length", "Deep Sleep (hrs)", "Light Sleep (hrs)", "REM Sleep (hrs)", "Awake Sleep (hrs)", 
     "Restless Moments", "HRV (ms)", "HRV Status", "Avg Overnight HR", "Skin Temp Change", 
     "Avg SpO2", "Lowest SpO2", "Avg Respiration", "Lowest Respiration", "Breathing Variations",
+    "Acute Training Load", "Chronic Training Load", "Daily Training Load",
 
     # --- 4. NERVOUS SYSTEM, STRESS & BODY BATTERY ---
     "BB High", "BB Low", "BB Change", "BB Charged", "BB Drained", 
@@ -129,8 +133,8 @@ HEADER_TO_ATTRIBUTE_MAP = {
     #"BP Systolic Avg": "blood_pressure_systolic",
     #"BP Diastolic Avg": "blood_pressure_diastolic",
     "BP Log Raw": "bp_log_raw",
-    "Active Calories": "active_calories",
-    "Resting Calories": "resting_calories",
+    "Daily Active Calories": "active_calories",
+    "Daily Resting Calories": "resting_calories",
     "Resting Heart Rate": "resting_heart_rate",
     "Average Stress": "average_stress",
     "Training Status": "training_status",
@@ -183,6 +187,7 @@ HEADER_TO_ATTRIBUTE_MAP = {
     "Restless Moments": "restless_moments",
     "Breathing Variations": "breathing_variations",
 
+    # Activity Metrics
     "Activity Duration": "activity_duration",
     "Time in Zone 1 (mins)": "time_in_zone_1_mins",
     "Time in Zone 2 (mins)": "time_in_zone_2_mins",
@@ -195,7 +200,9 @@ HEADER_TO_ATTRIBUTE_MAP = {
     "Max 20 Min Power (W)": "max_20_min_power",
     "Aerobic TE": "aerobic_training_effect",
     "Anaerobic TE": "anaerobic_training_effect",
-
+    "Acute Training Load": "acute_training_load",
+    "Chronic Training Load": "chronic_training_load",
+    "Daily Training Load": "daily_training_load"
 }
 
 ## Helper to get all attribute names from the dataclass

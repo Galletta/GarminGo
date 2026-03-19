@@ -214,6 +214,9 @@ class GarminClient:
             time_in_zone_1_mins = time_in_zone_2_mins = time_in_zone_3_mins = time_in_zone_4_mins = time_in_zone_5_mins = None
             training_stress_score = intensity_factor = None
             norm_power = max_20_min_power = aerobic_training_effect = anaerobic_training_effect = None
+            acute_training_load: Optional[float] = None
+            chronic_training_load: Optional[float] = None
+            daily_training_load: Optional[float] = None
 
             if activities:
                 time_in_zone_1_seconds = 0
@@ -462,8 +465,12 @@ class GarminClient:
                 
                 if first_device: # Check if first_device is not None
                     training_status_phrase = first_device.get('trainingStatusFeedbackPhrase')
+                    daily_training_load = first_device.get('trainingLoad')
                 else:
                     training_status_phrase = None # Ensure it's None if no device data or first_device is None
+                    load_balance = training_status.get('trainingLoadBalance', {}) or {}
+                    acute_training_load = load_balance.get('acuteLoad')
+                    chronic_training_load = load_balance.get('chronicLoad')
             else:
                 logger.warning(f"Training status data for {target_date} is None. VO2 Max and training status metrics will be blank.")
 
@@ -532,7 +539,10 @@ class GarminClient:
                 norm_power=norm_power,
                 max_20_min_power=max_20_min_power,
                 aerobic_training_effect=aerobic_training_effect,
-                anaerobic_training_effect=anaerobic_training_effect
+                anaerobic_training_effect=anaerobic_training_effect,
+                acute_training_load=acute_training_load,
+                chronic_training_load=chronic_training_load,
+                daily_training_load=daily_training_load
             )
 
         except Exception as e:

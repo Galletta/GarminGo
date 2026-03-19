@@ -158,8 +158,8 @@ def load_user_profiles():
 
 @app.command("cli-sync")
 def cli_sync(
-    start_date: str = typer.Option(..., help="Start date in YYYY-MM-DD format."),
-    end_date: str = typer.Option(..., help="End date in YYYY-MM-DD format."),
+    start_date: datetime = typer.Option(..., help="Start date in YYYY-MM-DD format."),
+    end_date: datetime = typer.Option(..., help="End date in YYYY-MM-DD format."),
     profile: str = typer.Option("USER1", help="The user profile from .env to use (e.g., USER1)."),
     output_type: str = typer.Option("sheets", help="Output type: 'sheets' or 'csv'.")
 ):
@@ -191,8 +191,8 @@ def cli_sync(
     asyncio.run(sync(
         email=email,
         password=password,
-        start_date=s_date,
-        end_date=e_date,
+        start_date=start_date.date(),
+        end_date=end_date.date(),
         output_type=output_type,
         profile_data=selected_profile_data,
         profile_name=profile
